@@ -1,4 +1,5 @@
 __pycache__
+
 venv
 venv/Lib
 venv/Lib/site-packages
@@ -7,5 +8,9 @@ venv/Scripts
 venv/Scripts/activate
 venv/Scripts/activate.bat
 venv/pyvenv.cfg
+
+
 .env
 .env.local
+
+drugboard

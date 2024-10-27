@@ -1,62 +1,59 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query
-from typing import Optional, List
-from pydantic import BaseModel
+from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import uvicorn
+from app import router as chat_router
 
-app = FastAPI(title="Drugboard Drawing Tool", version="1.0.0")
-
+# Create the main router
 router = APIRouter()
 
-# Sample in-memory database
-items = {}
+# Initialize FastAPI app with metadata
+app = FastAPI(
+    title="drugboard.ai llm · rag application",
+    version="1.0.0",
+    description="A FastAPI application for drugboard.ai with LLM and RAG capabilities",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
-class Item(BaseModel):
-    name: str
-    description: Optional[str] = None
-    price: float
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@router.get("/")
-async def welcome_greeting():
-    return "message: Welcome to Drugboard Drawing Tool"
+# Basic health check endpoint
+@router.get("/", tags=["health"])
+async def health_check():
+    return {"status": "healthy", "message": "Welcome to drugboard.ai API"}
 
-@router.post("/items/", response_model=Item)
-async def create_item(item: Item):
-    if item.name in items:
-        raise HTTPException(status_code=400, detail="Item already exists")
-    items[item.name] = item
-    return item
+# Error handling
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
 
+@app.exception_handler(Exception)
+async def general_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "message": str(exc)},
+    )
 
-@router.get("/items/", response_model=List[Item])
-async def read_items(skip: int = 0, limit: int = 10):
-    return list(items.values())[skip : skip + limit]
-
-@router.get("/items/{item_name}", response_model=Item)
-async def read_item(item_name: str):
-    if item_name not in items:
-        raise HTTPException(status_code=404, detail="Item not found")
-    return items[item_name]
-
-@router.put("/items/{item_name}", response_model=Item)
-async def update_item(item_name: str, item: Item):
-    if item_name not in items:
-        raise HTTPException(status_code=404, detail="Item not found")
-    items[item_name] = item
-    return item
-
-@router.delete("/items/{item_name}")
-async def delete_item(item_name: str):
-    if item_name not in items:
-        raise HTTPException(status_code=404, detail="Item not found")
-    del items[item_name]
-    return {"message": "Item deleted"}
-
-@router.get("/search/")
-async def search_items(q: str = Query(..., min_length=3, max_length=50)):
-    results = [item for item in items.values() if q.lower() in item.name.lower()]
-    return results
-
+# Include routers
 app.include_router(router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,  # Enable auto-reload during development
+        workers=1     # Number of worker processes
+    )
